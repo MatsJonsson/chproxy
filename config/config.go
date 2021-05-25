@@ -305,6 +305,11 @@ type Cluster struct {
 	// Name of ClickHouse cluster
 	Name string `yaml:"name"`
 
+	// Dynamic discovery of kubernetes pods hosting Clickhouse instances
+	KubernetesPodDiscovery   bool   `yaml:"kubernetespoddiscovery,omitempty"`
+	KubernetesPodNameInclude string `yaml:"kubernetespodbnameinclude,omitempty"`
+	KubernetesPodNameExclude string `yaml:"kubernetespodnameexclude,omitempty"`
+
 	// Scheme: `http` or `https`; would be applied to all nodes
 	// default value is `http`
 	Scheme string `yaml:"scheme,omitempty"`
@@ -369,6 +374,7 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.HeartBeatInterval != 0 && c.HeartBeat.Interval == defaultHeartBeat.Interval {
 		c.HeartBeat.Interval = c.HeartBeatInterval
 	}
+
 	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
 }
 

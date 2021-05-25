@@ -1,0 +1,57 @@
+server:
+
+  http:
+
+      listen_addr: ":9090"
+
+      allowed_networks: [
+
+        "10.0.0.0/16", # internal
+
+        "35.191.0.0/24" # load balancer
+
+        ]
+
+ 
+
+users:
+
+  - name: "clickhouse_operator"
+
+    password: "clickhouse_operator_password"
+
+    to_cluster: "clickhouse"
+
+    to_user: "default"
+
+    # Allow `CORS` requests for `tabix`.
+
+    allow_cors: true
+
+ 
+
+# by default each cluster has `default` user which can be overridden by section `users`
+
+clusters:
+
+  - name: "clickhouse"
+    kubernetespoddiscovery: true
+    kubernetespodbnameinclude: "clickhouse"
+    kubernetespodnameexclude: "tabix"
+
+    nodes: [
+      "172.17.0.4:8123",
+      "172.17.0.5:8123",
+      "172.17.0.6:8123",
+      "172.17.0.7:8123",
+      "172.17.0.8:8123",
+      "172.17.0.9:8123"
+    ]
+
+    users:
+
+      - name: "default"
+
+        password: ""
+
+    

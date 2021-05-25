@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -18,6 +21,14 @@ import (
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/acme/autocert"
+
+	//client-go dependencies
+	//"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 var (
@@ -33,6 +44,14 @@ var (
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
 )
+
+// Clickhouse on Kubernetes means pods can come and go, i.e replicas and shards
+// For this reason, CHproxy has been expanded to use the Client-go library to dynamically discover Clickhouse pods.
+// Discovery is perfomed using the kubernetes APIs to find all pods in a cluster.
+// Clickhouse pods are filtered out by means of comparing the pod name to strings included or excluded.
+
+var clientset *kubernetes.Clientset // Kubernetes client API access
+var chNodes []string
 
 func main() {
 	flag.Parse()
@@ -51,6 +70,105 @@ func main() {
 		log.Fatalf("error while applying config: %s", err)
 	}
 	log.Infof("Loading config %q: successful", *configFile)
+
+	// Are we configured for dynamic kubernetes pod discovery?
+	if cfg.Clusters[0].KubernetesPodDiscovery {
+
+		// Are we inside or outside the Kubernetes cluster?
+		var kubeaccessok bool
+		kubeaccessok = true
+
+		// Attempt to create an in-cluster config
+		kconfig, err := rest.InClusterConfig()
+		if err == nil {
+			log.Infof("Failed to build cluster internal kubeconfig. No further kubernetes API access attempts will be made")
+			clientset, err = kubernetes.NewForConfig(kconfig)
+			if err != nil {
+				log.Infof("Failed to create Kubernetes clientset for cluster internal accesss.")
+				kubeaccessok = false
+
+			}
+		} else { // in-cluster config failed, attempt out of cluster config
+			var kubeconfig *string
+			if home := homedir.HomeDir(); home != "" {
+				kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+			} else {
+				kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+			}
+			flag.Parse()
+
+			// use the current context in kubeconfig
+			kconfig, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+			if err != nil {
+				log.Infof("Failed to build cluster external kubeconfig. Attempting to build cluster internal kubeconfig")
+				kubeaccessok = false
+			}
+			clientset, err = kubernetes.NewForConfig(kconfig)
+			if err != nil {
+				log.Infof("Failed to create Kubernetes clientset for cluster internal accesss.")
+				kubeaccessok = false
+			}
+
+		}
+
+		// if we have Clickhouse deployed on kubernetes, and CHproxy has internal or external access to the Kubernetes APIs, we can automatically manage pods coming and going
+		if kubeaccessok != false {
+			kubepodscanticker := time.NewTicker(500 * time.Millisecond)
+
+			go func() {
+
+				for {
+
+					select {
+					case <-kubepodscanticker.C:
+						{
+							// fetch the configuration for kubenretes pod discovery
+							chCurrentNodes := cfg.Clusters[0].Nodes
+							sort.Strings(chCurrentNodes)
+							skubeInclude := cfg.Clusters[0].KubernetesPodNameInclude
+							skubeExclude := cfg.Clusters[0].KubernetesPodNameExclude
+
+							// get pods in all the namespaces by omitting namespace
+							pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+							if err != nil {
+								log.Infof("Kubernetes API error: \n", err.Error())
+							}
+
+							//log.Infof("There are %d pods in the cluster\n", len(pods.Items))
+							var chDiscoveredNodes []string
+
+							// Filter out the relevant pods
+							for i, s := range pods.Items {
+								sname := s.GetName()
+								_ = i //workaround for unused variable...
+
+								if strings.Contains(sname, skubeInclude) && !strings.Contains(sname, skubeExclude) {
+									//log.Infof("Clickhouse Pod %s   %s\n", i, s.GetName(), s.Status.PodIP)
+									if len(s.Status.PodIP) > 6 {
+										chDiscoveredNodes = append(chDiscoveredNodes, s.Status.PodIP+":8123")
+									}
+								}
+							}
+							sort.Strings(chDiscoveredNodes)
+
+							// if pods appear of dissapear, there will be a difference between chCurrentNodes and chDiscoveredNodes
+							if reflect.DeepEqual(chCurrentNodes, chDiscoveredNodes) == false {
+								// Assign the new node configuration
+								cfg.Clusters[0].Nodes = chDiscoveredNodes
+
+								// Apply the updated configuration
+								applyConfig(cfg)
+								chCurrentNodes = chDiscoveredNodes
+
+								log.Infof("Clickhouse Pod configuration changed, node list updated\n")
+							}
+						}
+					}
+				}
+			}() //end gofunc
+		}
+	} // end of kubernetes pod discovery
+	//////////////
 
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP)
