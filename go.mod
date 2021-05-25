@@ -1,6 +1,6 @@
 module github.com/Vertamedia/chproxy
 
-go 1.13
+go 1.16
 
 require (
 	github.com/DataDog/zstd v1.4.4
@@ -9,5 +9,7 @@ require (
 	github.com/pierrec/lz4 v2.4.0+incompatible
 	github.com/prometheus/client_golang v1.3.0
 	golang.org/x/crypto v0.0.0-20200109152110-61a87790db17
-	gopkg.in/yaml.v2 v2.2.7
+	gopkg.in/yaml.v2 v2.4.0
+	k8s.io/apimachinery v0.21.0
+	k8s.io/client-go v0.21.0
 )
