@@ -51,7 +51,6 @@ var (
 // Clickhouse pods are filtered out by means of comparing the pod name to strings included or excluded.
 
 var clientset *kubernetes.Clientset // Kubernetes client API access
-var chNodes []string
 
 func main() {
 	flag.Parse()
