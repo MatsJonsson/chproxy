@@ -7,6 +7,7 @@ WORKDIR /go/src/github.com/Vertamedia/chproxy
 COPY . ./
 ARG EXT_BUILD_TAG
 ENV EXT_BUILD_TAG ${EXT_BUILD_TAG}
+RUN go mod vendor
 RUN make release-build
 
 FROM alpine
