@@ -309,6 +309,7 @@ type Cluster struct {
 	KubernetesPodDiscovery   bool   `yaml:"kubernetespoddiscovery,omitempty"`
 	KubernetesPodNameInclude string `yaml:"kubernetespodbnameinclude,omitempty"`
 	KubernetesPodNameExclude string `yaml:"kubernetespodnameexclude,omitempty"`
+	KubernetesPodNamespace string `yaml:"kubernetespodnamespace,omitempty"`
 
 	// Scheme: `http` or `https`; would be applied to all nodes
 	// default value is `http`
