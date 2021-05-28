@@ -38,6 +38,7 @@ clusters:
     kubernetespoddiscovery: true
     kubernetespodbnameinclude: "clickhouse"
     kubernetespodnameexclude: "tabix"
+    kubernetespodnamespace: "default" # set "" if all namespaces
 
     nodes: [
       "172.17.0.4:8123",
