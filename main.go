@@ -126,9 +126,10 @@ func main() {
 							sort.Strings(chCurrentNodes)
 							skubeInclude := cfg.Clusters[0].KubernetesPodNameInclude
 							skubeExclude := cfg.Clusters[0].KubernetesPodNameExclude
+							skubeNamespace := cfg.Clusters[0].KubernetesPodNamespace
 
-							// get pods in all the namespaces by omitting namespace
-							pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+							// get pods in all the namespaces by omitting namespace by setting Pods("")
+							pods, err := clientset.CoreV1().Pods(skubeNamespace).List(context.TODO(), metav1.ListOptions{})
 							if err != nil {
 								log.Infof("Kubernetes API error: \n", err.Error())
 							}
